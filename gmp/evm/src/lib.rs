@@ -36,7 +36,9 @@ use sol::{
 	IExecutor::{self, IExecutorInstance},
 	TssKey,
 };
-use std::{ops::Range, pin::Pin, process::Command, sync::Arc, time::Duration};
+use std::{
+	collections::HashMap, ops::Range, pin::Pin, process::Command, sync::Arc, time::Duration,
+};
 use thiserror::Error;
 use time_primitives::{
 	Address32, BatchId, ConnectorParams, GatewayMessage, GmpEvent, GmpMessage, Hash, IChain,
@@ -358,8 +360,8 @@ impl IConnectorAdmin for Connector {
 		gateway: &[u8],
 	) -> Result<(Address32, u64)> {
 		let config: DeploymentConfig = serde_json::from_slice(additional_params)?;
-		let proxy = extract_bytecode(proxy)?;
-		let gateway = extract_bytecode(gateway)?;
+		let proxy = extract_bytecode(proxy, Default::default())?;
+		let gateway = extract_bytecode(gateway, Default::default())?;
 		// deploy factory
 		let factory_address = a_addr(self.parse_address(&config.factory_address)?).0 .0;
 		let factory_deployed_code = self.rpc.get_code_at(factory_address.into()).await?;
@@ -396,7 +398,7 @@ impl IConnectorAdmin for Connector {
 		gateway: &[u8],
 	) -> Result<()> {
 		let config: DeploymentConfig = serde_json::from_slice(additional_params)?;
-		let gateway = extract_bytecode(gateway)?;
+		let gateway = extract_bytecode(gateway, Default::default())?;
 		let proxy_address = a_addr(proxy);
 
 		let gateway_addr = self.deploy_gateway_contract(&config, proxy_address, gateway).await?;
@@ -421,7 +423,7 @@ impl IConnectorAdmin for Connector {
 	/// Deploys test contract
 	async fn deploy_test(&self, gateway: Address32, tester: &[u8]) -> Result<(Address32, u64)> {
 		let call = sol::GmpTester::constructorCall { gateway: a_addr(gateway) };
-		let mut bytecode = extract_bytecode(tester)?;
+		let mut bytecode = extract_bytecode(tester, Default::default())?;
 		bytecode.extend(call.abi_encode());
 
 		let tx = TransactionRequest::default().with_deploy_code(bytecode);
@@ -436,6 +438,71 @@ impl IConnectorAdmin for Connector {
 			.ok_or(anyhow!("Failed to get contract deployement block"))?;
 
 		Ok((t_addr(contract_address), block_number))
+	}
+
+	async fn deploy_zenswap(
+		&self,
+		gateway: Address32,
+		zenswap: &[u8],
+		zenswap_plugin: &[u8],
+	) -> Result<()> {
+		//TODO for now we have hardcoded unviersal router and permit 2 address
+		// below two are needed by zenswap
+		let universal_router: Address20 = "0x3fC91A3afd70395Cd496C647d5a6CC9D4B2b7FAD".parse()?;
+		let permit2: Address20 = "0x000000000022D473030F116dDEE9F6B43aC78BA3".parse()?;
+
+		// Below 3 are needed by plugin:
+		let messenger: Address20 = "0x9f3B8679c73C2Fef8b59B4f3444d4e156fb70AA5".parse()?;
+		let transmitter: Address20 = "0x7865fAfC2db2093669d92c0F33AeEF291086BEFD".parse()?;
+		let usdc_addr: Address20 = "0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238".parse()?;
+		// let weth_addr: Address20 = "0xfFf9976782d46CC05630D1f6eBAb18b2324d6B14".parse()?;
+
+		let plugin_initializer = sol::ZenSwapGmpPlugin::initializeCall {
+			_gmpGateway: a_addr(gateway),
+			_cctpMessenger: messenger,
+			_cctpReceiver: transmitter,
+			_usdc: usdc_addr,
+			_fee: u256(&[0u8; 32]),
+		};
+
+		let zenswap_contructor = sol::ZenSwap::constructorCall {
+			_universalRouter: universal_router,
+			_permit2: permit2,
+		};
+
+		let mut zenswap_bytecode = extract_bytecode(zenswap, Default::default())?;
+		zenswap_bytecode.extend(zenswap_contructor.abi_encode());
+
+		// Zenswap deployment
+		let tx = TransactionRequest::default().with_deploy_code(zenswap_bytecode);
+		let receipt =
+			self.rpc.send_transaction(WithOtherFields::new(tx)).await?.get_receipt().await?;
+		let zenswap_addr =
+			receipt.contract_address.ok_or(anyhow!("Unable to get contract address"))?;
+
+		// Message lib deployment
+		let tx = TransactionRequest::default().with_deploy_code(sol::Message::BYTECODE.clone());
+		let receipt =
+			self.rpc.send_transaction(WithOtherFields::new(tx)).await?.get_receipt().await?;
+		let lib_addr = receipt
+			.contract_address
+			.ok_or(anyhow!("Unable to get message library address"))?;
+
+		// ZenswapPlugin deployment
+		let mut replacement_keys = HashMap::new();
+		replacement_keys.insert("__$2e72248e36cbd9e27bfc8c16586a2f5547$__", hex::encode(lib_addr));
+		let plugin_bytecode = extract_bytecode(zenswap_plugin, replacement_keys)?;
+		let tx = TransactionRequest::default().with_deploy_code(plugin_bytecode);
+		let receipt =
+			self.rpc.send_transaction(WithOtherFields::new(tx)).await?.get_receipt().await?;
+		let plugin_address =
+			receipt.contract_address.ok_or(anyhow!("Unable to get plugin address"))?;
+
+		//initialize the plugin
+		self.evm_send(t_addr(plugin_address), plugin_initializer, 0).await?;
+		tracing::info!("zenswap addr: {}", hex::encode(zenswap_addr));
+		tracing::info!("zenswap plugin addr: {}", hex::encode(plugin_address));
+		Ok(())
 	}
 
 	/// Returns gateway admin
@@ -928,10 +995,17 @@ fn compute_create2_address(
 	Ok(Address20::from_slice(&proxy_hashed[12..]))
 }
 
-fn extract_bytecode(json_abi: &[u8]) -> Result<Vec<u8>> {
+fn extract_bytecode(json_abi: &[u8], link_addresses: HashMap<&str, String>) -> Result<Vec<u8>> {
 	let contract_abi: Contract = serde_json::from_slice(json_abi)?;
-	hex::decode(contract_abi.bytecode.object.replace("0x", ""))
-		.with_context(|| "Failed to get contract bytecode")
+	let mut bytecode_str = match contract_abi.bytecode {
+		Bytecode::Object { object } => object,
+		Bytecode::Code(code) => code,
+	};
+	for (key, val) in link_addresses.iter() {
+		bytecode_str = bytecode_str.replace(key, val);
+	}
+	let bytecode_str = bytecode_str.replace("0x", "");
+	hex::decode(bytecode_str).with_context(|| "Failed to get contract bytecode")
 }
 
 #[derive(Clone, Debug, Deserialize)]
@@ -961,9 +1035,11 @@ struct Contract {
 	bytecode: Bytecode,
 }
 
-#[derive(Deserialize)]
-struct Bytecode {
-	object: String,
+#[derive(Deserialize, Debug)]
+#[serde(untagged)]
+enum Bytecode {
+	Object { object: String },
+	Code(String),
 }
 
 #[derive(Deserialize, Debug)]

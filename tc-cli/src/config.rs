@@ -154,37 +154,23 @@ impl Config {
 	pub fn backend(&self, network: NetworkId) -> Result<BackendData> {
 		let network = self.network(network)?;
 		Ok(if let Some(backend) = self.yaml.backends.get(&network.backend) {
+			let read_file = |path: &PathBuf| -> Result<Vec<u8>> {
+				let full_path = self.relative_path(path);
+				std::fs::read(&full_path)
+					.with_context(|| format!("failed to read from {}", full_path.display()))
+			};
 			BackendData {
-				proxy: {
-					let path = self.relative_path(&backend.proxy);
-					std::fs::read(&path).with_context(|| {
-						format!("failed to read proxy contract from {}", path.display())
-					})?
-				},
-				gateway: {
-					let path = self.relative_path(&backend.gateway);
-					std::fs::read(&path).with_context(|| {
-						format!("failed to read gateway contract from {}", path.display())
-					})?
-				},
-				tester: {
-					let path = self.relative_path(&backend.tester);
-					std::fs::read(&path).with_context(|| {
-						format!("failed to read tester contract from {}", path.display())
-					})?
-				},
-				factory: {
-					let path = self.relative_path(&backend.factory);
-					std::fs::read(&path).with_context(|| {
-						format!("failed to read additional params from {}", path.display())
-					})?
-				},
-				chain_dict: {
-					let path = self.relative_path(&backend.chain_dict);
-					std::fs::read(&path).with_context(|| {
-						format!("failed to read chain dict from {}", path.display())
-					})?
-				},
+				proxy: read_file(&backend.proxy)?,
+				gateway: read_file(&backend.gateway)?,
+				tester: read_file(&backend.tester)?,
+				factory: read_file(&backend.factory)?,
+				chain_dict: read_file(&backend.chain_dict)?,
+				zenswap: backend.zenswap.as_ref().map(|p| read_file(p)).transpose()?,
+				zenswap_plugin: backend
+					.zenswap_plugin
+					.as_ref()
+					.map(|p| read_file(p))
+					.transpose()?,
 			}
 		} else {
 			BackendData::default()
@@ -234,6 +220,8 @@ pub struct BackendConfig {
 	pub gateway: PathBuf,
 	pub tester: PathBuf,
 	pub chain_dict: PathBuf,
+	pub zenswap: Option<PathBuf>,
+	pub zenswap_plugin: Option<PathBuf>,
 }
 
 #[derive(Default)]
@@ -243,6 +231,8 @@ pub struct BackendData {
 	pub gateway: Vec<u8>,
 	pub tester: Vec<u8>,
 	pub chain_dict: Vec<u8>,
+	pub zenswap: Option<Vec<u8>>,
+	pub zenswap_plugin: Option<Vec<u8>>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]

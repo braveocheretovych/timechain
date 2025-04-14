@@ -386,6 +386,13 @@ pub trait IConnectorAdmin: IConnector {
 	async fn set_route(&self, gateway: Address32, route: Route) -> Result<()>;
 	/// Deploys a test contract.
 	async fn deploy_test(&self, gateway: Address32, tester: &[u8]) -> Result<(Address32, u64)>;
+	/// Deploys zenswap contracts.
+	async fn deploy_zenswap(
+		&self,
+		gateway: Address32,
+		zenswap: &[u8],
+		zenswap_plugin: &[u8],
+	) -> Result<()>;
 	/// Estimates the message gas limit.
 	async fn estimate_message_gas_limit(
 		&self,

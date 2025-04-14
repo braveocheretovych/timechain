@@ -12,6 +12,15 @@ sol!(
 	"../../analog-gmp/out/IExecutor.sol/IExecutor.json"
 );
 
+sol!(
+	#[allow(clippy::too_many_arguments)]
+	#[allow(missing_docs)]
+	#[sol(rpc)]
+	#[derive(Debug)]
+	Message,
+	"../../analog-gmp/out/interfaces/circle-cctp/Message.sol/Message.json"
+);
+
 sol! {
 	#[derive(Debug, Default, PartialEq, Eq)]
 	struct TssKey {
@@ -146,6 +155,20 @@ sol! {
 		event BatchExecuted(
 			uint64 batch,
 		);
+	}
+
+	contract ZenSwapGmpPlugin {
+		function initialize(
+			address _gmpGateway,
+			address _cctpMessenger,
+			address _cctpReceiver,
+			address _usdc,
+			uint _fee
+		) public initializer;
+	}
+
+	contract ZenSwap {
+		constructor(address _universalRouter, address _permit2) UniswapWrapper(_universalRouter, _permit2);
 	}
 
 	#[derive(Debug, Default, PartialEq, Eq)]
