@@ -390,8 +390,18 @@ pub trait IConnectorAdmin: IConnector {
 	async fn deploy_zenswap(
 		&self,
 		gateway: Address32,
+		network_id: NetworkId,
 		zenswap: &[u8],
 		zenswap_plugin: &[u8],
+	) -> Result<(Address32, Address32)>;
+	async fn send_swap(
+		&self,
+		src: NetworkId,
+		dest: NetworkId,
+		src_zenswap_addr: Address32,
+		src_plugin: Address32,
+		dst_zenswap_addr: Address32,
+		dst_plugin: Address32,
 	) -> Result<()>;
 	/// Estimates the message gas limit.
 	async fn estimate_message_gas_limit(

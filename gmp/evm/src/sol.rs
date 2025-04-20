@@ -165,10 +165,46 @@ sol! {
 			address _usdc,
 			uint _fee
 		) public initializer;
+
+
+		struct PluginParams {
+			// Plugin address on destination chain
+			address destPlugin;
+			// Extra data recipient (ZenSwap contract)
+			address recipient;
+			// USDC recipient in case of onReceived fail
+			address fallbackRecipient;
+			// CCTP destination domain
+			uint32 cctpDestinationDomain;
+			// GMP destination network id
+			uint16 gmpDestNetwork;
+			// GMP gas limit
+			uint64 gmpGasLimit;
+		}
 	}
 
 	contract ZenSwap {
 		constructor(address _universalRouter, address _permit2) UniswapWrapper(_universalRouter, _permit2);
+		struct SwapParams {
+			address tokenIn;
+			address tokenOut;
+			uint256 deadline;
+			bytes commands;
+			bytes[] inputs;
+		}
+
+		function swapSend(
+			bytes calldata pluginParams,
+			SwapParams calldata sourceParams,
+			SwapParams calldata destParams,
+			address payable recipient,
+			address plugin,
+			uint256 amountIn
+		) external payable;
+	}
+
+	contract ERC20Approval {
+		function approve(address spender, uint256 amount) external returns (bool);
 	}
 
 	#[derive(Debug, Default, PartialEq, Eq)]
