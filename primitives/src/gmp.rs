@@ -1,5 +1,5 @@
 use crate::cctp::FixedSizeEncodable;
-use crate::{NetworkId, TssPublicKey, U256};
+use crate::{NetworkId, SwapPrerequisites, TssPublicKey, U256};
 use scale_codec::{Decode, Encode};
 use scale_info::{prelude::vec::Vec, TypeInfo};
 #[cfg(feature = "std")]
@@ -390,18 +390,19 @@ pub trait IConnectorAdmin: IConnector {
 	async fn deploy_zenswap(
 		&self,
 		gateway: Address32,
-		network_id: NetworkId,
 		zenswap: &[u8],
 		zenswap_plugin: &[u8],
+		helper_contracts: SwapPrerequisites,
 	) -> Result<(Address32, Address32)>;
 	async fn send_swap(
 		&self,
-		src: NetworkId,
 		dest: NetworkId,
 		src_zenswap_addr: Address32,
 		src_plugin: Address32,
 		dst_zenswap_addr: Address32,
 		dst_plugin: Address32,
+		src_contracts: SwapPrerequisites,
+		dst_contracts: SwapPrerequisites,
 	) -> Result<()>;
 	/// Estimates the message gas limit.
 	async fn estimate_message_gas_limit(
