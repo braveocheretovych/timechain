@@ -27,7 +27,7 @@ use anyhow::{anyhow, Context, Result};
 use async_trait::async_trait;
 use blocks::FinalizedBlockStream;
 use custom::BEP226;
-use dict::{chain_id_to_domain, Currency};
+use dict::{network_id_to_domain_id, Currency};
 use futures::{Stream, StreamExt};
 use reqwest::Client;
 use serde::Deserialize;
@@ -520,7 +520,7 @@ impl IConnectorAdmin for Connector {
 		let src_usdc = a_addr(src_contracts.usdc);
 		let dst_usdc = a_addr(dst_contracts.usdc);
 
-		let domain_id = chain_id_to_domain(self.chain_id)?;
+		let domain_id = network_id_to_domain_id(dest)?;
 		let params = sol::ZenSwapGmpPlugin::PluginParams {
 			destPlugin: a_addr(dst_plugin),
 			recipient: a_addr(dst_zenswap_addr),
