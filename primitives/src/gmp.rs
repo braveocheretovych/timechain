@@ -403,7 +403,7 @@ pub trait IConnectorAdmin: IConnector {
 		dst_plugin: Address32,
 		src_contracts: SwapPrerequisites,
 		dst_contracts: SwapPrerequisites,
-	) -> Result<()>;
+	) -> Result<MessageId>;
 	/// Estimates the message gas limit.
 	async fn estimate_message_gas_limit(
 		&self,
