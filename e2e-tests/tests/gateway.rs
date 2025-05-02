@@ -1,5 +1,5 @@
 use anyhow::Result;
-use e2e_tests::{Backend, TestEnv, Tester};
+use e2e_tests::{TestEnv, Tester, TestingBackend};
 use futures::StreamExt;
 use std::collections::HashSet;
 
@@ -52,6 +52,6 @@ async fn gateway_payments() -> Result<()> {
 
 #[tokio::test]
 async fn gateway_payments_evm_tss() -> Result<()> {
-	let (_env, tc) = TestEnv::new(Backend::Evm, true).await?;
+	let (_env, tc) = TestEnv::new(TestingBackend::evm_local(), true).await?;
 	test_gateway_payments(tc).await
 }
