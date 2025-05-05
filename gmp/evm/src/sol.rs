@@ -2,6 +2,9 @@ use alloy::{primitives::U256, sol, sol_types::SolValue};
 
 use crate::{a_addr, t_addr};
 
+// circle message v1 bytecode doesnt need to be changed so keeping it as const.
+pub const CIRCLE_MESSAGE_LIB_BYTECODE: &str = "610106610034600b8282823980515f1a607314602857634e487b7160e01b5f525f60045260245ffd5b305f52607381538281f3fe7300000000000000000000000000000000000000003014608060405260043610603c575f3560e01c80635ced058e14604057806382c947b714606b575b5f80fd5b604e604b366004608f565b90565b6040516001600160a01b0390911681526020015b60405180910390f35b6082607636600460a5565b6001600160a01b031690565b6040519081526020016062565b5f60208284031215609e575f80fd5b5035919050565b5f6020828403121560b4575f80fd5b81356001600160a01b038116811460c9575f80fd5b939250505056fea2646970667358221220c4a4b6631fa0b2b666a9bfb1b09eddaaf35ed46e87ed97746419c81c07fd02cb64736f6c63430008190033";
+
 // Codegen from ABI file to interact with the contract.
 sol!(
 	#[allow(clippy::too_many_arguments)]
@@ -10,15 +13,6 @@ sol!(
 	#[derive(Debug)]
 	IExecutor,
 	"../../analog-gmp/out/IExecutor.sol/IExecutor.json"
-);
-
-sol!(
-	#[allow(clippy::too_many_arguments)]
-	#[allow(missing_docs)]
-	#[sol(rpc)]
-	#[derive(Debug)]
-	Message,
-	"../../analog-gmp/out/interfaces/circle-cctp/Message.sol/Message.json"
 );
 
 sol! {

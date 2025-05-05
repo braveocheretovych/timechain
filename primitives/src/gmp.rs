@@ -397,6 +397,7 @@ pub trait IConnectorAdmin: IConnector {
 	async fn send_swap(
 		&self,
 		dest: NetworkId,
+		dest_name: String,
 		src_zenswap_addr: Address32,
 		src_plugin: Address32,
 		dst_zenswap_addr: Address32,
